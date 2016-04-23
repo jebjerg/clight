@@ -53,13 +53,37 @@ def playpause(entity):
 @click.argument("url", type=str)
 @click.option("--entity", default=homeassistant.default_media_player)
 @click.option("--debug/--no-debug", default=None)
-def stream(url, entity, debug):
+@click.option("--wait/--no-wait", default=None)
+@click.option("--repeat/--no-repeat", default=None)
+def stream(url, entity, debug, wait, repeat):
     from pychromecast import get_chromecast
     from mimetypes import types_map
     from os.path import splitext
-    if debug:
-        print("play_media: {}".format(url))
-    get_chromecast().play_media(url, types_map.get(splitext(url)[-1]))
+    from time import sleep
+    from json import dumps
+    c = get_chromecast()
+    c.wait()
+    while True:
+        if debug:
+            print("play_media: {}".format(url))
+        c.play_media(url, types_map.get(splitext(url)[-1]))
+        c.wait()
+        if wait or repeat:
+            sleep(10)
+            if debug:
+                print("waiting for playback to stop")
+            while c.media_controller.status \
+                    and c.media_controller.status.player_state == "PLAYING" \
+                    and c.media_controller.status.content_id == url:
+                print("\r{}".format(dumps(c.media_controller.status.__dict__))
+                    if debug else "\rstill zZZz'ing", end="")
+                sleep(10)
+                continue
+            if repeat:
+                continue
+            else:
+                print("\rdone. status: {}".format(c.status) if debug else "")
+        break
 
 cli.add_command(level)
 cli.add_command(on)
