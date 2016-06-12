@@ -13,8 +13,11 @@ ha_headers = {
 def set_light(state, group=default_group, level=None, color=None):
     data = {
         "entity_id": "group.{}".format(group),
-        "brightness": level,
     }
+    if level:
+        data.update({
+            "brightness": level,
+        })
     if color:
         data.update({
             "rgb_color": list(
