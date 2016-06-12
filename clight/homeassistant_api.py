@@ -1,4 +1,4 @@
-from config import api_endpoint, api_key, default_group, default_media_player
+from .config import api_endpoint, api_key, default_group, default_media_player
 import requests
 from json import dumps as json
 from struct import unpack

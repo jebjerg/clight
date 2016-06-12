@@ -1,5 +1,5 @@
 import click
-import homeassistant_api as homeassistant
+from clight import homeassistant_api as homeassistant
 
 
 @click.group()

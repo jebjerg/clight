@@ -1,15 +1,16 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="clight",
-    version="0.2",
-    py_modules=["main", "homeassistant_api", "config"],
+    version="0.3",
+    packages=find_packages(),
     install_requires=[
         "Click",
         "pychromecast",
     ],
-    entry_points="""
-        [console_scripts]
-        clight=main:cli
-    """,
+    entry_points={
+        "console_scripts": [
+            "clight=clight.main:cli",
+        ]
+    },
 )
