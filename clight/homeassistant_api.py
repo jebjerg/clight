@@ -11,18 +11,22 @@ ha_headers = {
 
 
 def set_light(state, group=default_group, level=None, color=None):
+    data = {
+        "entity_id": "group.{}".format(group),
+        "brightness": level,
+    }
+    if color:
+        data.update({
+            "rgb_color": list(
+                unpack(
+                    "BBB",
+                    bytes.fromhex(color.lstrip("#"))
+                )
+            ),
+	})
     assert requests.post(api_endpoint+"/homeassistant/turn_{}".format(state),
                          headers=ha_headers,
-                         data=json({
-                             "entity_id": "group.{}".format(group),
-                             "brightness": level,
-                             "rgb_color": list(
-                                 unpack(
-                                     "BBB",
-                                     bytes.fromhex(color.lstrip("#"))
-                                 )
-                             ) if color else None
-                         })).ok
+                         data=json(data)).ok
 
 
 def chrome(action, entity=default_media_player, debug=None, **kw):
