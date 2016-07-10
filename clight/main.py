@@ -1,5 +1,8 @@
 import click
-from clight import homeassistant_api as homeassistant
+from clight import config
+from clight import hue
+import socket
+from os import path
 
 
 @click.group()
@@ -10,52 +13,80 @@ def cli():
 @click.command()
 @click.argument("level", type=int)
 @click.option("--color", help="hex value, e.g. ff0000")
-@click.option("--group", help="entity", default=homeassistant.default_group)
+@click.option("--group", help="entity", default=config.default_group)
+# @hue.need_bridge
 def level(level, group, color):
-    homeassistant.set_light(state="on",
-                            group=group,
-                            level=255*(level/100.),
-                            color=color
-                            )
+    hue.check_bridge()  # see main.on TODO
+    # homeassistant.set_light(state="on",
+    #                         group=group,
+    #                         level=255*(level/100.),
+    #                         color=color
+    #                         )
+    [hue.bridge.set_group(g.group_id, "bri", 255*(level/100.))
+     for g in hue.bridge.groups if g.name == group]
 
 
 @click.command()
-@click.option("--group", default=homeassistant.default_group)
+@click.option("--group", default=config.default_group)
+# @hue.need_bridge
 def on(group):
-    homeassistant.set_light("on", group)
+    # TODO: until I figure out how to use a decorator (hue.need_bridge) and
+    # @click at the same time (@command;@hue.need_bridge renames to command to
+    # wrapper
+    hue.check_bridge()
+
+    [hue.bridge.set_group(g.group_id, "on", True)
+     for g in hue.bridge.groups if g.name == group]
 
 
 @click.command()
-@click.option("--group", default=homeassistant.default_group)
+@click.option("--group", default=config.default_group)
+# @hue.need_bridge
 def off(group):
-    homeassistant.set_light("off", group)
+    hue.check_bridge()
+    [hue.bridge.set_group(g.group_id, "on", False)
+     for g in hue.bridge.groups if g.name == group]
+
+
+def chromesocket(action):
+    c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    c.connect(config.chrome_addr)
+    c.sendall(action)
+    return c.recv(512).decode()
 
 
 @click.command()
-@click.option("--entity", default=homeassistant.default_media_player)
 def play(entity):
-    homeassistant.chrome("play", entity)
+    if path.exists(config.chrome_addr):  # unix socket
+        chromesocket(b"play")
+    else:
+        c = pychromecast.get_chromecast()
+        c.media_controller.play()
 
 
 @click.command()
-@click.option("--entity", default=homeassistant.default_media_player)
 def pause(entity):
-    homeassistant.chrome("pause", entity)
+    if path.exists(config.chrome_addr):  # unix socket
+        chromesocket(b"pause")
+    else:
+        c = pychromecast.get_chromecast()
+        c.media_controller.pause()
 
 
 @click.command()
-@click.option("--entity", default=homeassistant.default_media_player)
 def playpause(entity):
-    homeassistant.chrome("play_pause", entity)
+    if path.exists(config.chrome_addr):  # unix socket
+        chromesocket(b"toggle")
+    else:
+        raise NotImplementedError
 
 
 @click.command()
 @click.argument("url", type=str)
-@click.option("--entity", default=homeassistant.default_media_player)
 @click.option("--debug/--no-debug", default=None)
 @click.option("--wait/--no-wait", default=None)
 @click.option("--repeat/--no-repeat", default=None)
-def stream(url, entity, debug, wait, repeat):
+def stream(url, debug, wait, repeat):
     from pychromecast import get_chromecast
     from mimetypes import types_map
     from os.path import splitext
@@ -76,7 +107,7 @@ def stream(url, entity, debug, wait, repeat):
                     and c.media_controller.status.player_state == "PLAYING" \
                     and c.media_controller.status.content_id == url:
                 print("\r{}".format(dumps(c.media_controller.status.__dict__))
-                    if debug else "\rstill zZZz'ing", end="")
+                      if debug else "\rstill zZZz'ing", end="")
                 sleep(10)
                 continue
             if repeat:
@@ -92,3 +123,6 @@ cli.add_command(play)
 cli.add_command(pause)
 cli.add_command(playpause)
 cli.add_command(stream)
+
+if __name__ == "__main__":
+    cli()
