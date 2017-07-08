@@ -8,9 +8,7 @@ def need_bridge(fn):
     try:
         def wrapper(*a, **kw):
             global bridge
-            print("wut")
             if not bridge:
-                print("wat")
                 bridge = phue.Bridge(
                     ip=config.bridge_host,
                     username=config.bridge_username

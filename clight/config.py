@@ -10,3 +10,4 @@ bridge_username = conf["hue"]["username"]
 default_group = conf["hue"]["default_group"]
 
 chrome_addr = conf["chromecast"]["address"]
+chrome_host = conf["chromecast"]["host"]

@@ -1,8 +1,15 @@
 import click
 from clight import config
 from clight import hue
-import socket
-from os import path
+from pychromecast import Chromecast  # TODO: from clight import chrome
+from time import sleep
+
+
+def get_cast():
+    c = Chromecast(config.chrome_host)
+    c.wait()
+    sleep(.1)
+    return c
 
 
 @click.group()
@@ -22,7 +29,7 @@ def level(level, group, color):
     #                         level=255*(level/100.),
     #                         color=color
     #                         )
-    [hue.bridge.set_group(g.group_id, "bri", 255*(level/100.))
+    [hue.bridge.set_group(g.group_id, "bri", int(255*(level/100.)))
      for g in hue.bridge.groups if g.name == group]
 
 
@@ -48,35 +55,26 @@ def off(group):
      for g in hue.bridge.groups if g.name == group]
 
 
-def chromesocket(action):
-    c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    c.connect(config.chrome_addr)
-    c.sendall(action)
-    return c.recv(512).decode()
+@click.command()
+def play():
+    c = get_cast()
+    c.media_controller.play()
 
 
 @click.command()
-def play(entity):
-    if path.exists(config.chrome_addr):  # unix socket
-        chromesocket(b"play")
-    else:
-        c = pychromecast.get_chromecast()
-        c.media_controller.play()
+def pause():
+    c = get_cast()
+    c.media_controller.pause()
 
 
 @click.command()
-def pause(entity):
-    if path.exists(config.chrome_addr):  # unix socket
-        chromesocket(b"pause")
-    else:
-        c = pychromecast.get_chromecast()
+def playpause():
+    c = get_cast()
+    state = c.media_controller.status.player_state
+    if state == "PLAYING":
         c.media_controller.pause()
-
-
-@click.command()
-def playpause(entity):
-    if path.exists(config.chrome_addr):  # unix socket
-        chromesocket(b"toggle")
+    elif state == "PAUSED":
+        c.media_controller.play()
     else:
         raise NotImplementedError
 
@@ -87,13 +85,11 @@ def playpause(entity):
 @click.option("--wait/--no-wait", default=None)
 @click.option("--repeat/--no-repeat", default=None)
 def stream(url, debug, wait, repeat):
-    from pychromecast import get_chromecast
     from mimetypes import types_map
     from os.path import splitext
     from time import sleep
     from json import dumps
-    c = get_chromecast()
-    c.wait()
+    c = get_cast()
     while True:
         if debug:
             print("play_media: {}".format(url))
@@ -116,6 +112,16 @@ def stream(url, debug, wait, repeat):
                 print("\rdone. status: {}".format(c.status) if debug else "")
         break
 
+
+@click.command()
+@click.argument("delta", type=int)
+def seek(delta):
+    c = get_cast()
+    current_time = c.media_controller.status.current_time
+    print(current_time, current_time + delta)
+    if current_time:
+        c.media_controller.seek(current_time + delta)
+
 cli.add_command(level)
 cli.add_command(on)
 cli.add_command(off)
@@ -123,6 +129,7 @@ cli.add_command(play)
 cli.add_command(pause)
 cli.add_command(playpause)
 cli.add_command(stream)
+cli.add_command(seek)
 
 if __name__ == "__main__":
     cli()
