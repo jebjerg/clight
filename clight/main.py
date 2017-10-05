@@ -93,8 +93,16 @@ def stream(url, debug, wait, repeat):
     while True:
         if debug:
             print("play_media: {}".format(url))
-        c.play_media(url, types_map.get(splitext(url)[-1]))
         c.wait()
+        sleep(.5)
+        for i in range(5):
+            if c.media_controller.status.player_state == "PLAYING" \
+                    and c.media_controller.status.content_id == url:
+                break
+            c.play_media(url, types_map.get(splitext(url)[-1]))
+            c.wait()
+            sleep(.5)
+
         if wait or repeat:
             sleep(10)
             if debug:
@@ -114,11 +122,18 @@ def stream(url, debug, wait, repeat):
 
 
 @click.command()
+@click.option("--debug/--no-debug", default=None)
+def quit(debug):
+    c = get_cast()
+    c.quit_app()
+    c.wait()
+
+
+@click.command()
 @click.argument("delta", type=int)
 def seek(delta):
     c = get_cast()
     current_time = c.media_controller.status.current_time
-    print(current_time, current_time + delta)
     if current_time:
         c.media_controller.seek(current_time + delta)
 
@@ -130,6 +145,7 @@ cli.add_command(pause)
 cli.add_command(playpause)
 cli.add_command(stream)
 cli.add_command(seek)
+cli.add_command(quit)
 
 if __name__ == "__main__":
     cli()
