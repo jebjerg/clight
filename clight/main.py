@@ -96,12 +96,13 @@ def stream(url, debug, wait, repeat):
         c.wait()
         sleep(.5)
         for i in range(5):
-            if c.media_controller.status.player_state == "PLAYING" \
+            if (c.media_controller.status.player_state == "PLAYING"
+                or c.media_controller.status.player_state == "BUFFERING") \
                     and c.media_controller.status.content_id == url:
                 break
             c.play_media(url, types_map.get(splitext(url)[-1]))
             c.wait()
-            sleep(.5)
+            sleep(2)
 
         if wait or repeat:
             sleep(10)
