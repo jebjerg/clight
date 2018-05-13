@@ -157,11 +157,9 @@ def seek_op():
         return total - delta if mul == -1 else delta
 
     op = yield whitespace >> (
-        (string("+=")).result(partial(seek_delta, 1))
+        (one_of("-+")).parsecmap(lambda o: partial(seek_delta, -1 if o == "-" else 1))
         ^
-        (string("-=")).result(partial(seek_delta, -1))
-        ^
-        (one_of("-+")).parsecmap(lambda o: partial(seek_border_relative, -1 if o == "-" else 1))
+        (one_of("<>")).parsecmap(lambda o: partial(seek_border_relative, -1 if o == "<" else 1))
         ^
         string("").result(partial(seek_border_relative, 1))
     )
