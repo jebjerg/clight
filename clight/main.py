@@ -130,13 +130,55 @@ def quit(debug):
     c.wait()
 
 
+from parsec import generate, many1, string, regex, one_of, optional
+
+digits = many1(regex("[0-9]"))
+whitespace = optional(regex(r"\s*"))
+
+
+@generate("time")
+def time_spec():
+    units = {"h": 60*60, "m": 60, "s": 1}
+    specs = yield whitespace >> many1(digits + one_of("hms")) ^ digits.parsecmap(lambda x: [(x, "s")])
+    seconds = 0
+    for (nums, unit) in specs:
+        seconds += int("".join(nums)) * units[unit]
+    return seconds
+
+
+@generate("seek")
+def seek_op():
+    from functools import partial
+
+    def seek_delta(mul, delta, current, total):
+        return current + mul*delta
+
+    def seek_border_relative(mul, delta, current, total):
+        return total - delta if mul == -1 else delta
+
+    op = yield whitespace >> (
+        (string("+=")).result(partial(seek_delta, 1))
+        ^
+        (string("-=")).result(partial(seek_delta, -1))
+        ^
+        (one_of("-+")).parsecmap(lambda o: partial(seek_border_relative, -1 if o == "-" else 1))
+        ^
+        string("").result(partial(seek_border_relative, 1))
+    )
+    seconds = yield time_spec
+    return partial(op, seconds)
+
+
 @click.command()
-@click.argument("delta", type=int)
-def seek(delta):
+@click.argument("time", type=str)
+def seek(time):
     c = get_cast()
     current_time = c.media_controller.status.current_time
+    total_time = c.media_controller.status.duration
     if current_time:
-        c.media_controller.seek(current_time + delta)
+        fn = seek_op.parse(time)
+        seek_value = fn(current_time, total_time)
+        c.media_controller.seek(seek_value)
 
 cli.add_command(level)
 cli.add_command(on)
