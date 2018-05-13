@@ -136,13 +136,18 @@ digits = many1(regex("[0-9]"))
 whitespace = optional(regex(r"\s*"))
 
 
+def to_int(ns):
+    return int("".join(ns))
+
+
 @generate("time")
 def time_spec():
     units = {"h": 60*60, "m": 60, "s": 1}
-    specs = yield whitespace >> many1(digits + one_of("hms")) ^ digits.parsecmap(lambda x: [(x, "s")])
-    seconds = 0
-    for (nums, unit) in specs:
-        seconds += int("".join(nums)) * units[unit]
+    seconds = yield whitespace >> (
+        many1(digits + one_of("hms"))
+        ^
+        digits.parsecmap(lambda x: [(x, "s")])
+    ).parsecmap(lambda args: sum([to_int(ns) * units[u] for ns, u in args]))
     return seconds
 
 
