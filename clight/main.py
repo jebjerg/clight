@@ -164,7 +164,7 @@ def seek_op():
     op = yield whitespace >> (
         (one_of("-+")).parsecmap(lambda o: partial(seek_delta, -1 if o == "-" else 1))
         ^
-        (one_of("<>")).parsecmap(lambda o: partial(seek_border_relative, -1 if o == "<" else 1))
+        (one_of("[]")).parsecmap(lambda o: partial(seek_border_relative, -1 if o == "]" else 1))
         ^
         string("").result(partial(seek_border_relative, 1))
     )
