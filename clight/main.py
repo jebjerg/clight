@@ -130,46 +130,39 @@ def quit(debug):
     c.wait()
 
 
-from parsec import generate, many1, string, regex, one_of, optional
+from parsec import many1, string, regex, one_of, optional, eof
+from functools import partial
 
+
+def delta_fn(args):
+    op, seconds = args
+
+    def wrapped(mul, delta, current, total):
+        return current + mul*delta
+    return partial(wrapped, -1 if op == "-" else 1, seconds)
+
+
+def border_relative_fn(args):
+    op, seconds = args
+
+    def wrapped(mul, delta, current, total):
+        return total - delta if mul == -1 else delta
+    return partial(wrapped, -1 if op == "]" else 1, seconds)
+
+units = {"h": 60*60, "m": 60, "s": 1}
 digits = many1(regex("[0-9]"))
 whitespace = optional(regex(r"\s*"))
 
+time_spec = whitespace >> (
+    many1(digits + one_of("hms")) ^ digits.parsecmap(lambda x: [(x, "s")])  # transform 1234 to 1234s
+).parsecmap(lambda args: sum([int("".join(ns)) * units[u] for ns, u in args]))  # add up units to seconds
 
-def to_int(ns):
-    return int("".join(ns))
+from_start, from_end = (string("[") + time_spec), (time_spec + string("]")).parsecmap(lambda x: tuple(reversed(x)))
 
-
-@generate("time")
-def time_spec():
-    units = {"h": 60*60, "m": 60, "s": 1}
-    seconds = yield whitespace >> (
-        many1(digits + one_of("hms"))
-        ^
-        digits.parsecmap(lambda x: [(x, "s")])
-    ).parsecmap(lambda args: sum([to_int(ns) * units[u] for ns, u in args]))
-    return seconds
-
-
-@generate("seek")
-def seek_op():
-    from functools import partial
-
-    def seek_delta(mul, delta, current, total):
-        return current + mul*delta
-
-    def seek_border_relative(mul, delta, current, total):
-        return total - delta if mul == -1 else delta
-
-    op = yield whitespace >> (
-        (one_of("-+")).parsecmap(lambda o: partial(seek_delta, -1 if o == "-" else 1))
-        ^
-        (one_of("[]")).parsecmap(lambda o: partial(seek_border_relative, -1 if o == "]" else 1))
-        ^
-        string("").result(partial(seek_border_relative, 1))
-    )
-    seconds = yield time_spec
-    return partial(op, seconds)
+delta_spec = (one_of("-+") + time_spec).parsecmap(delta_fn)
+border_spec = (from_start ^ from_end).parsecmap(border_relative_fn)
+absolute_spec = time_spec.parsecmap(lambda seconds: border_relative_fn("", seconds))
+seek_spec = whitespace >> (delta_spec ^ border_spec ^ absolute_spec) << whitespace + eof()
 
 
 @click.command()
@@ -179,7 +172,7 @@ def seek(time):
     current_time = c.media_controller.status.current_time
     total_time = c.media_controller.status.duration
     if current_time:
-        fn = seek_op.parse(time)
+        fn = seek_spec.parse(time)
         seek_value = fn(current_time, total_time)
         c.media_controller.seek(seek_value)
 
